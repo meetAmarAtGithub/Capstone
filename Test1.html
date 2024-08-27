@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLOv8 Prediction</title>
+</head>
+<body>
+    <h2>Upload an Image for YOLOv8 Prediction</h2>
+    <label for="country">Select Country:</label>
+    <!--<select id="country" onchange="fetchCarMakes()">-->
+    <select id="country">
+        <option value="us">United States</option>
+        <option value="jp">Japan</option>
+        <option value="de">Germany</option>
+        <!-- Add more countries as needed -->
+    </select>
+
+    <label for="carMake">Select Car Make:</label>
+    <select id="carMake" onchange="fetchCarModels();">
+        <option value="">Select Make</option>
+        <!-- Makes will be populated here -->
+    </select>
+    
+    <label for="carModel">Select Car Model:</label>
+    <select id="carModel">
+        <option value="">Select Model</option>
+        <!-- Models will be populated based on the selected make -->
+    </select>
+
+    <input type="file" id="fileInput" onchange="displaySelectedImage()">
+    <button onclick="uploadFile()">Upload</button>
+    <pre id="result"></pre>
+    <img id="selectedImage" style="max-width: 100%; display: none;">
+    <img id="outputImage" style="max-width: 100%; display: none;">
+
+    <script>
+        // Function to populate the makes dropdown
+        function populateMakes(makes) {
+            console.log('Makes to populate:', makes); // Debug: Ensure makes is an array
+            const carMakeSelect = document.getElementById('carMake');
+            //carMakeSelect.innerHTML = '<option value="">Select Make</option>';            
+            
+            makes.then(carMakes=>{ 
+                carMakes.forEach(make => {
+                    const option = document.createElement('option');
+                    option.value = make.make_id;
+                    option.textContent = make.make_display;
+                    //alert(make.make_id)
+                    carMakeSelect.appendChild(option);
+                })        
+            });
+        }
+
+        // Function to filter makes by country
+        async function filterMakesByCountry(country, countryText) {            
+            //console.log('Selected country:', country);
+            //alert('Selected country: ' + country);
+            const headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            };
+
+            const response = await fetch(`http://172.0.40.25:8000/car-makes/?sold_in_country=${country}`, {
+                method: 'GET',
+                headers: headers
+            });
+
+            //console.log('response :', response);
+            //const response = await fetch('http://192.168.1.3:8000/car-makes/?sold_in_country=${country}');
+            //const response = await fetch(`http://192.168.202.160:8000/car-makes/?sold_in_country=${country}`);
+            //console.log('url:', 'http://192.168.1.3:8000/car-makes/?sold_in_country=${country}');
+            let data=null;
+            if (response.ok) {                
+                data = await response.json();                
+            } else {
+                console.error('Failed to fetch car makes:', response.statusText);
+            }
+            //alert(countryText);
+            //console.log(data);
+            return data.filter(make => make.make_country == countryText);
+        }
+
+        // Event listener for the country dropdown
+        document.getElementById('country').addEventListener('change', function() {
+        const selectedCountryValue = this.value;
+        const selectedCountryText = this.options[this.selectedIndex].text;
+        const filteredMakes = filterMakesByCountry(selectedCountryValue,selectedCountryText);
+        //alert(filteredMakes);
+        //console.log(filteredMakes);
+        populateMakes(filteredMakes);
+        });
+
+        // Initial population if needed
+        document.addEventListener('DOMContentLoaded', function() {
+        const selectedCountry = document.getElementById('country').value;
+        if (selectedCountry) {
+            const filteredMakes = filterMakesByCountry(selectedCountry);
+            console.log('filteredMakes :', filteredMakes)
+            populateMakes(filteredMakes);
+        }
+        });
+
+        async function fetchCarModels() {
+            const makeId = document.getElementById('carMake').value;  
+            console.log(`http://172.0.40.25:8000/car-models/?make_id=${makeId}`) 
+            const headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            };        
+            const response = await fetch(`http://172.0.40.25:8000/car-models/?make_id=${makeId}`, {
+                method: 'GET',
+                headers: headers
+            });
+            
+            const data = await response.json();
+            console.log('data',data);
+            populateModels(data);
+        }
+
+        function populateModels(models) {
+            const carModelSelect = document.getElementById('carModel');
+            carModelSelect.innerHTML = '<option value="">Select Model</option>';
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.model_name;
+                option.textContent = model.model_name;
+                carModelSelect.appendChild(option);
+            });
+        }
+
+        function displaySelectedImage() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const selectedImage = document.getElementById('selectedImage');
+                selectedImage.src = e.target.result;
+                selectedImage.style.display = 'block';
+            }
+            reader.readAsDataURL(file);
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('http://172.0.40.25:8000/predict/', {  // Make sure to use the correct URL
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('Response:', result);  // Log the response for debugging
+                    document.getElementById('result').textContent = JSON.stringify(result, null, 2);
+
+                    // Color map for different class IDs
+                    const colorMap = {
+                        0: getRandomColor(),
+                        1: getRandomColor(),
+                        2: getRandomColor(),
+                        3: getRandomColor(),
+                        4: getRandomColor(),
+                        5: getRandomColor(),
+                        6: getRandomColor(),
+                        7: getRandomColor(),
+                        8: getRandomColor(),
+                        9: getRandomColor(),
+                        10: getRandomColor()
+                    };
+
+                    // Function to generate a random color
+                    function getRandomColor() {
+                        const letters = '0123456789ABCDEF';
+                        let color = '#';
+                        for (let i = 0; i < 6; i++) {
+                            color += letters[Math.floor(Math.random() * 16)];
+                        }
+                        return color;
+                    }
+
+                    // Display the image with bounding boxes
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const img = new Image();
+                        img.src = e.target.result;
+                        img.onload = function() {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            ctx.drawImage(img, 0, 0);
+
+                            // Ensure the predictions array exists
+                            if (result.predictions) {
+                                result.predictions.forEach(pred => {
+                                    const [x1, y1, x2, y2] = pred.bbox;
+                                    const color = colorMap[pred.class_id] || 'green'; // Default to green if class ID not found
+                                    ctx.strokeStyle = color;
+                                    ctx.lineWidth = 4;
+                                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                                    ctx.font = '20px Arial';
+                                    ctx.fillStyle = color;
+                                    ctx.fillText(pred.class_name, x1, y1 - 10);
+                                });
+                            } else {
+                                console.error('No predictions found in the response');
+                            }
+
+                            const outputImage = document.getElementById('outputImage');
+                            outputImage.src = canvas.toDataURL();
+                            outputImage.style.display = 'block';
+                        }
+                    }
+                    reader.readAsDataURL(file);
+                } else {
+                    console.error('Failed to fetch predictions:', response.statusText);
+                    document.getElementById('result').textContent = 'Error: ' + response.statusText;
+                }
+            } catch (error) {
+                console.error('Failed to fetch:', error);
+                document.getElementById('result').textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

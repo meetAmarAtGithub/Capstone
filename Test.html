@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLOv8 Prediction</title>
+</head>
+<body>
+    <h1>Upload an Image for YOLOv8 Prediction</h1>
+    <!--<input type="file" id="fileInput" onchange="displaySelectedImage()">-->
+    <input type="file" id="fileInput">
+    <button onclick="uploadFile()">Upload</button>
+    <pre id="result"></pre>
+    <img id="selectedImage" style="max-width: 100%; display: none;">
+    <img id="outputImage" style="max-width: 100%; display: none;">
+
+    <script>
+        function displaySelectedImage() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const selectedImage = document.getElementById('selectedImage');
+                selectedImage.src = e.target.result;
+                selectedImage.style.display = 'block';
+            }
+            reader.readAsDataURL(file);
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('http://192.168.1.3:8000/predict/', {  // Make sure to use the correct URL
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('Response:', result);  // Log the response for debugging
+                    document.getElementById('result').textContent = JSON.stringify(result, null, 2);
+
+                    // Color map for different class IDs
+                    const colorMap = {
+                        0: getRandomColor(),
+                        1: getRandomColor(),
+                        2: getRandomColor(),
+                        3: getRandomColor(),
+                        4: getRandomColor(),
+                        5: getRandomColor(),
+                        6: getRandomColor(),
+                        7: getRandomColor(),
+                        8: getRandomColor(),
+                        9: getRandomColor(),
+                        10: getRandomColor()
+                    };
+
+                    // Function to generate a random color
+                    function getRandomColor() {
+                        const letters = '0123456789ABCDEF';
+                        let color = '#';
+                        for (let i = 0; i < 6; i++) {
+                            color += letters[Math.floor(Math.random() * 16)];
+                        }
+                        return color;
+                    }
+
+                    // Display the image with bounding boxes
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const img = new Image();
+                        img.src = e.target.result;
+                        img.onload = function() {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            ctx.drawImage(img, 0, 0);
+
+                            // Ensure the predictions array exists
+                            if (result.predictions) {
+                                result.predictions.forEach(pred => {
+                                    const [x1, y1, x2, y2] = pred.bbox;
+                                    const color = colorMap[pred.class_id] || 'green'; // Default to green if class ID not found
+                                    ctx.strokeStyle = color;
+                                    ctx.lineWidth = 4;
+                                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                                    ctx.font = '20px Arial';
+                                    ctx.fillStyle = color;
+                                    ctx.fillText(pred.class_name, x1, y1 - 10);
+                                });
+                            } else {
+                                console.error('No predictions found in the response');
+                            }
+
+                            const outputImage = document.getElementById('outputImage');
+                            outputImage.src = canvas.toDataURL();
+                            outputImage.style.display = 'block';
+                        }
+                    }
+                    reader.readAsDataURL(file);
+                } else {
+                    console.error('Failed to fetch predictions:', response.statusText);
+                    document.getElementById('result').textContent = 'Error: ' + response.statusText;
+                }
+            } catch (error) {
+                console.error('Failed to fetch:', error);
+                document.getElementById('result').textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
