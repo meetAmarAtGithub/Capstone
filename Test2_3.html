@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Damage Prediction & Query</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-r4NyEX2GXrHQuQ5Bx+bbWEfKNZ9RAkO2ngBI9yUw5yDI0twtutOaKNknwNbEubja" crossorigin="anonymous">
+    <style>
+        body {
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin: auto; /* This will center the container horizontally */
+        }
+        #outputImage {
+            margin-top: 20px;
+        }
+        .result-box {
+            background-color: #e9ecef;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 10px;
+        }
+        .btn-primary {
+            background-color: #a8bdd4;
+            border-color: #007bff;
+        }
+        h2, h3 {
+            color: #495057;
+        }
+        table {
+            width: 100%;
+        }
+        td {
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 style="text-align: center;">Upload an Image for Car Damage Prediction</h2>
+        <table>
+            <tr>
+                <td>
+                    <label for="country" class="form-label">Select Country</label>
+                    <select id="country" class="form-select">
+                        <option value="">Select Country</option>
+                    </select>
+                </td>
+                <td>
+                    <label for="carMake" class="form-label">Select Car Make</label>
+                    <select id="carMake" class="form-select" onchange="fetchCarModels();">
+                        <option value="">Select Make</option>
+                    </select>
+                </td>
+                <td>
+                    <label for="carModel" class="form-label">Select Car Model</label>
+                    <select id="carModel" class="form-select">
+                        <option value="">Select Model</option>
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="3" style="text-align: center;">
+                    <label for="fileInput" class="form-label">Upload Image</label>
+                    <input type="file" class="form-control" id="fileInput" onchange="displaySelectedImage()">
+                    <p id="fileName" style="display: none;"></p>                
+                    <button class="btn btn-primary w-100 mt-4" onclick="uploadFile()">Upload Image for Prediction</button>
+                </td>
+            </tr>
+        </table>
+
+        <div class="result-box mt-4">
+            <h3>Prediction Result</h3>
+            <pre style="width: 50%; height: 50%;" id="result"></pre>
+            <img id="outputImage" style="max-width: 100%; display: none;" class="img-fluid rounded">
+        </div>
+
+        <hr class="my-4">
+
+        <h3 class="text-center">Upload PDF and Submit Insurance Query</h3>
+        <table style="text-align: center;">
+            <tr>
+                <td>
+                    <label for="queryInput" class="form-label">Enter Query</label>
+                    <textarea id="queryInput" class="form-control" rows="4" cols="50" style="resize: both;" aria-placeholder="Type your query here"></textarea>
+                </td>
+            </tr>
+            <tr>            
+                <td>
+                    <label for="fileInput2" class="form-label">Upload PDF</label>
+                    <input type="file" class="form-control" id="fileInput2" accept=".pdf">
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <button type="button" class="btn btn-success w-100 mt-4" onclick="uploadFileToGPT()">Submit Query</button>
+                </td>
+            </tr>
+        </table>
+
+        <div class="result-box mt-4">
+            <h3>Result from GPT</h3>
+            <label id="resultFromGPT"></label>
+        </div>
+    </div>
+
+    <script>
+        // Initialize a global variable to store the total cost
+        let totalCost = 0;
+        let message = '';
+        // JSON Data for car makes and models embedded directly into the JavaScript
+        const carData = {
+            "Makes": [
+                        {
+                            "make_id": "mahindra",
+                            "make_display": "Mahindra",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Scorpio",
+                            "Bumper_damage": 1200,
+                            "Paint_damage_scratches": 2400,
+                            "Body_dent": 2000,
+                            "Fender_bender": 1600,
+                            "Cracked_windshield": 6400,
+                            "Suspension_damage": 14400,
+                            "Hood_damages": 8000,
+                            "Window_glass_damage": 4800,
+                            "Trunk_boot_damage": 3200,
+                            "Headlight_damage": 2000
+                        },
+                        {
+                            "make_id": "tata",
+                            "make_display": "Tata",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Harrier",
+                            "Bumper_damage": 2000,
+                            "Paint_damage_scratches": 4000,
+                            "Body_dent": 3200,
+                            "Fender_bender": 2800,
+                            "Cracked_windshield": 8000,
+                            "Suspension_damage": 17600,
+                            "Hood_damages": 10400,
+                            "Window_glass_damage": 6400,
+                            "Trunk_boot_damage": 4400,
+                            "Headlight_damage": 2800
+                        },
+                        {
+                            "make_id": "maruti",
+                            "make_display": "Maruti Suzuki",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Baleno",
+                            "Bumper_damage": 1440,
+                            "Paint_damage_scratches": 2240,
+                            "Body_dent": 1760,
+                            "Fender_bender": 1440,
+                            "Cracked_windshield": 5200,
+                            "Suspension_damage": 12800,
+                            "Hood_damages": 8400,
+                            "Window_glass_damage": 4000,
+                            "Trunk_boot_damage": 2800,
+                            "Headlight_damage": 1760
+                        },
+                        {
+                            "make_id": "force",
+                            "make_display": "Force Motors",
+                            "make_is_common": "0",
+                            "make_country": "India",
+                            "make_model": "Traveller",
+                            "Bumper_damage": 1600,
+                            "Paint_damage_scratches": 2800,
+                            "Body_dent": 2400,
+                            "Fender_bender": 2000,
+                            "Cracked_windshield": 7200,
+                            "Suspension_damage": 16000,
+                            "Hood_damages": 9600,
+                            "Window_glass_damage": 5200,
+                            "Trunk_boot_damage": 3600,
+                            "Headlight_damage": 2400
+                        },
+                        {
+                            "make_id": "hindustan",
+                            "make_display": "Hindustan Motors",
+                            "make_is_common": "0",
+                            "make_country": "India",
+                            "make_model": "Ambassador",
+                            "Bumper_damage": 1120,
+                            "Paint_damage_scratches": 2160,
+                            "Body_dent": 1760,
+                            "Fender_bender": 1520,
+                            "Cracked_windshield": 5600,
+                            "Suspension_damage": 13600,
+                            "Hood_damages": 8400,
+                            "Window_glass_damage": 4640,
+                            "Trunk_boot_damage": 3040,
+                            "Headlight_damage": 2080
+                        },
+                        {
+                            "make_id": "tata",
+                            "make_display": "Tata",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Nexon",
+                            "Bumper_damage": 1280,
+                            "Paint_damage_scratches": 2560,
+                            "Body_dent": 2080,
+                            "Fender_bender": 1760,
+                            "Cracked_windshield": 6000,
+                            "Suspension_damage": 15200,
+                            "Hood_damages": 9200,
+                            "Window_glass_damage": 4960,
+                            "Trunk_boot_damage": 3200,
+                            "Headlight_damage": 2240
+                        },
+                        {
+                            "make_id": "mahindra",
+                            "make_display": "Mahindra",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "XUV700",
+                            "Bumper_damage": 1760,
+                            "Paint_damage_scratches": 3200,
+                            "Body_dent": 2800,
+                            "Fender_bender": 2400,
+                            "Cracked_windshield": 7600,
+                            "Suspension_damage": 16800,
+                            "Hood_damages": 10000,
+                            "Window_glass_damage": 5600,
+                            "Trunk_boot_damage": 3840,
+                            "Headlight_damage": 2560
+                        },
+                        {
+                            "make_id": "maruti",
+                            "make_display": "Maruti Suzuki",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Vitara Brezza",
+                            "Bumper_damage": 1440,
+                            "Paint_damage_scratches": 2400,
+                            "Body_dent": 2240,
+                            "Fender_bender": 1600,
+                            "Cracked_windshield": 6400,
+                            "Suspension_damage": 14000,
+                            "Hood_damages": 8800,
+                            "Window_glass_damage": 4640,
+                            "Trunk_boot_damage": 3360,
+                            "Headlight_damage": 2080
+                        },
+                        {
+                            "make_id": "tata",
+                            "make_display": "Tata",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Altroz",
+                            "Bumper_damage": 1200,
+                            "Paint_damage_scratches": 2240,
+                            "Body_dent": 1840,
+                            "Fender_bender": 1520,
+                            "Cracked_windshield": 5200,
+                            "Suspension_damage": 13200,
+                            "Hood_damages": 8000,
+                            "Window_glass_damage": 4160,
+                            "Trunk_boot_damage": 2880,
+                            "Headlight_damage": 1920
+                        },
+                        {
+                            "make_id": "force",
+                            "make_display": "Force Motors",
+                            "make_is_common": "0",
+                            "make_country": "India",
+                            "make_model": "Trax",
+                            "Bumper_damage": 1600,
+                            "Paint_damage_scratches": 3200,
+                            "Body_dent": 2560,
+                            "Fender_bender": 2240,
+                            "Cracked_windshield": 6800,
+                            "Suspension_damage": 17600,
+                            "Hood_damages": 10400,
+                            "Window_glass_damage": 6000,
+                            "Trunk_boot_damage": 4000,
+                            "Headlight_damage": 2400
+                        },
+                        {
+                            "make_id": "tata",
+                            "make_display": "Tata",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Safari",
+                            "Bumper_damage": 1800,
+                            "Paint_damage_scratches": 3600,
+                            "Body_dent": 2880,
+                            "Fender_bender": 2400,
+                            "Cracked_windshield": 8000,
+                            "Suspension_damage": 19200,
+                            "Hood_damages": 11200,
+                            "Window_glass_damage": 6800,
+                            "Trunk_boot_damage": 4800,
+                            "Headlight_damage": 2800
+                        },
+                        {
+                            "make_id": "mahindra",
+                            "make_display": "Mahindra",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Thar",
+                            "Bumper_damage": 1760,
+                            "Paint_damage_scratches": 3520,
+                            "Body_dent": 2960,
+                            "Fender_bender": 2400,
+                            "Cracked_windshield": 7680,
+                            "Suspension_damage": 16800,
+                            "Hood_damages": 10000,
+                            "Window_glass_damage": 6000,
+                            "Trunk_boot_damage": 4000,
+                            "Headlight_damage": 2400
+                        },
+                        {
+                            "make_id": "mahindra",
+                            "make_display": "Mahindra",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Bolero",
+                            "Bumper_damage": 1400,
+                            "Paint_damage_scratches": 2800,
+                            "Body_dent": 2400,
+                            "Fender_bender": 2000,
+                            "Cracked_windshield": 7200,
+                            "Suspension_damage": 16000,
+                            "Hood_damages": 9600,
+                            "Window_glass_damage": 5200,
+                            "Trunk_boot_damage": 3600,
+                            "Headlight_damage": 2200
+                        },
+                        {
+                            "make_id": "tata",
+                            "make_display": "Tata",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Hexa",
+                            "Bumper_damage": 1920,
+                            "Paint_damage_scratches": 3840,
+                            "Body_dent": 3120,
+                            "Fender_bender": 2560,
+                            "Cracked_windshield": 8320,
+                            "Suspension_damage": 19200,
+                            "Hood_damages": 11200,
+                            "Window_glass_damage": 6400,
+                            "Trunk_boot_damage": 4480,
+                            "Headlight_damage": 2560
+                        },
+                        {
+                            "make_id": "maruti",
+                            "make_display": "Maruti Suzuki",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Celerio",
+                            "Bumper_damage": 960,
+                            "Paint_damage_scratches": 1920,
+                            "Body_dent": 1600,
+                            "Fender_bender": 1280,
+                            "Cracked_windshield": 5120,
+                            "Suspension_damage": 12800,
+                            "Hood_damages": 7680,
+                            "Window_glass_damage": 3840,
+                            "Trunk_boot_damage": 2560,
+                            "Headlight_damage": 1600
+                        },
+                        {
+                            "make_id": "mahindra",
+                            "make_display": "Mahindra",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "KUV100",
+                            "Bumper_damage": 960,
+                            "Paint_damage_scratches": 1920,
+                            "Body_dent": 1600,
+                            "Fender_bender": 1280,
+                            "Cracked_windshield": 5120,
+                            "Suspension_damage": 12800,
+                            "Hood_damages": 7680,
+                            "Window_glass_damage": 3840,
+                            "Trunk_boot_damage": 2560,
+                            "Headlight_damage": 1600
+                        },
+                        {
+                            "make_id": "tata",
+                            "make_display": "Tata",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Tiago",
+                            "Bumper_damage": 960,
+                            "Paint_damage_scratches": 1920,
+                            "Body_dent": 1600,
+                            "Fender_bender": 1280,
+                            "Cracked_windshield": 5120,
+                            "Suspension_damage": 12800,
+                            "Hood_damages": 7680,
+                            "Window_glass_damage": 3840,
+                            "Trunk_boot_damage": 2560,
+                            "Headlight_damage": 1600
+                        },
+                        {
+                            "make_id": "maruti",
+                            "make_display": "Maruti Suzuki",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Swift",
+                            "Bumper_damage": 1280,
+                            "Paint_damage_scratches": 2560,
+                            "Body_dent": 2080,
+                            "Fender_bender": 1600,
+                            "Cracked_windshield": 6400,
+                            "Suspension_damage": 15200,
+                            "Hood_damages": 9200,
+                            "Window_glass_damage": 4480,
+                            "Trunk_boot_damage": 3040,
+                            "Headlight_damage": 1760
+                        },
+                        {
+                            "make_id": "tata",
+                            "make_display": "Tata",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Punch",
+                            "Bumper_damage": 1040,
+                            "Paint_damage_scratches": 2080,
+                            "Body_dent": 1680,
+                            "Fender_bender": 1360,
+                            "Cracked_windshield": 5440,
+                            "Suspension_damage": 13600,
+                            "Hood_damages": 8320,
+                            "Window_glass_damage": 4160,
+                            "Trunk_boot_damage": 2880,
+                            "Headlight_damage": 1680
+                        },
+                        {
+                            "make_id": "mahindra",
+                            "make_display": "Mahindra",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "XUV300",
+                            "Bumper_damage": 1360,
+                            "Paint_damage_scratches": 2720,
+                            "Body_dent": 2240,
+                            "Fender_bender": 1840,
+                            "Cracked_windshield": 5760,
+                            "Suspension_damage": 14400,
+                            "Hood_damages": 8800,
+                            "Window_glass_damage": 4480,
+                            "Trunk_boot_damage": 3040,
+                            "Headlight_damage": 1920
+                        },
+                        {
+                            "make_id": "force",
+                            "make_display": "Force Motors",
+                            "make_is_common": "0",
+                            "make_country": "India",
+                            "make_model": "Gurkha",
+                            "Bumper_damage": 1600,
+                            "Paint_damage_scratches": 3200,
+                            "Body_dent": 2560,
+                            "Fender_bender": 2080,
+                            "Cracked_windshield": 7200,
+                            "Suspension_damage": 16000,
+                            "Hood_damages": 9600,
+                            "Window_glass_damage": 5200,
+                            "Trunk_boot_damage": 3600,
+                            "Headlight_damage": 2400
+                        },
+                        {
+                            "make_id": "maruti",
+                            "make_display": "Maruti Suzuki",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Ertiga",
+                            "Bumper_damage": 1440,
+                            "Paint_damage_scratches": 2880,
+                            "Body_dent": 2320,
+                            "Fender_bender": 1840,
+                            "Cracked_windshield": 6720,
+                            "Suspension_damage": 16000,
+                            "Hood_damages": 9600,
+                            "Window_glass_damage": 4480,
+                            "Trunk_boot_damage": 3200,
+                            "Headlight_damage": 1920
+                        },
+                        {
+                            "make_id": "tata",
+                            "make_display": "Tata",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Tigor",
+                            "Bumper_damage": 1200,
+                            "Paint_damage_scratches": 2400,
+                            "Body_dent": 1920,
+                            "Fender_bender": 1520,
+                            "Cracked_windshield": 6400,
+                            "Suspension_damage": 14400,
+                            "Hood_damages": 8800,
+                            "Window_glass_damage": 4320,
+                            "Trunk_boot_damage": 2880,
+                            "Headlight_damage": 1760
+                        },
+                        {
+                            "make_id": "mahindra",
+                            "make_display": "Mahindra",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Marazzo",
+                            "Bumper_damage": 1600,
+                            "Paint_damage_scratches": 3200,
+                            "Body_dent": 2560,
+                            "Fender_bender": 2080,
+                            "Cracked_windshield": 7680,
+                            "Suspension_damage": 16800,
+                            "Hood_damages": 9600,
+                            "Window_glass_damage": 5200,
+                            "Trunk_boot_damage": 3600,
+                            "Headlight_damage": 2400
+                        },
+                        {
+                            "make_id": "maruti",
+                            "make_display": "Maruti Suzuki",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "S-Presso",
+                            "Bumper_damage": 960,
+                            "Paint_damage_scratches": 1920,
+                            "Body_dent": 1600,
+                            "Fender_bender": 1280,
+                            "Cracked_windshield": 5120,
+                            "Suspension_damage": 12800,
+                            "Hood_damages": 7680,
+                            "Window_glass_damage": 3840,
+                            "Trunk_boot_damage": 2560,
+                            "Headlight_damage": 1600
+                        },
+                        {
+                            "make_id": "tata",
+                            "make_display": "Tata",
+                            "make_is_common": "1",
+                            "make_country": "India",
+                            "make_model": "Zest",
+                            "Bumper_damage": 1120,
+                            "Paint_damage_scratches": 2240,
+                            "Body_dent": 1760,
+                            "Fender_bender": 1440,
+                            "Cracked_windshield": 5600,
+                            "Suspension_damage": 13600,
+                            "Hood_damages": 8320,
+                            "Window_glass_damage": 4160,
+                            "Trunk_boot_damage": 2880,
+                            "Headlight_damage": 1760
+                        }
+                    ]
+        };
+
+        // Load car data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Populate country dropdown
+            const countrySet = new Set(carData.Makes.map(make => make.make_country));
+            const countrySelect = document.getElementById('country');
+            countrySet.forEach(country => {
+                const option = document.createElement('option');
+                option.value = country;
+                option.textContent = country;
+                countrySelect.appendChild(option);
+            });
+
+            // Event listener for country selection
+            countrySelect.addEventListener('change', function() {
+                const selectedCountry = countrySelect.value;
+                populateMakes(carData.Makes, selectedCountry);
+            });
+        });
+
+        // Function to populate makes based on the selected country
+        function populateMakes(makes, country) {
+            const carMakeSelect = document.getElementById('carMake');
+            carMakeSelect.innerHTML = '<option value="">Select Make</option>';
+
+            makes.filter(make => make.make_country === country).forEach(make => {
+                const option = document.createElement('option');
+                option.value = make.make_id;
+                option.textContent = make.make_display;
+                carMakeSelect.appendChild(option);
+            });
+        }
+
+        // Function to fetch car models based on the selected make
+        function fetchCarModels() {
+            const carMakeSelect = document.getElementById('carMake');
+            const selectedMake = carMakeSelect.value; // Get the selected make
+            const carModelSelect = document.getElementById('carModel');
+            
+            carModelSelect.innerHTML = '<option value="">Select Model</option>'; // Clear existing models
+
+            // Assuming you have access to 'carData.Makes', which contains all the car makes and models
+            carData.Makes.filter(make => make.make_id === selectedMake).forEach(make => {
+                const option = document.createElement('option');
+                option.value = make.make_model; // Set model as value
+                option.textContent = make.make_model; // Display model
+                carModelSelect.appendChild(option); // Append to the model select dropdown
+            });
+        }
+
+
+        // Function to display selected image file name
+        function displaySelectedImage() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            if (file) {
+                const fileNameElement = document.getElementById('fileName');
+                fileNameElement.textContent = `Selected File: ${file.name}`;
+                fileNameElement.style.display = 'block';
+            }
+        }
+
+        // Function to display prediction results and calculate the total cost of repairs
+        function displayPredictionResults(result) {
+            const resultElement = document.getElementById('result');
+            const carMakeSelect = document.getElementById('carMake').value; // Selected car make
+            const carModelSelect = document.getElementById('carModel').value; // Selected car model
+
+            message = '';
+            totalCost = 0; // Reset total cost for each prediction
+
+            // Function to map class names from prediction to corresponding keys in carData
+            function mapClassNameToDamage(className) {
+                const classMap = {
+                    "Hood Damage": "Hood_damages",
+                    "Cracked Windsheild": "Cracked_windshield",
+                    "Head Light": "Headlight_damage",
+                    "Fender Bender": "Fender_bender",
+                    "Bumper Damage": "Bumper_damage",
+                    "Body Dent": "Body_dent",
+                    "Paint Damage Scratches": "Paint_damage_scratches",
+                    "Suspension Damage": "Suspension_damage",
+                    "Window Glass Damage": "Window_glass_damage",
+                    "Trunk Boot Damage": "Trunk_boot_damage"
+                };
+                return classMap[className] || null; // Return the mapped key or null if no match found
+            }
+
+            // Find the selected car make and model in carData
+            const selectedCarData = carData.Makes.find(make => make.make_id === carMakeSelect && make.make_model === carModelSelect);
+
+            if (selectedCarData) {
+                // Loop through each prediction and calculate cost
+                result.predictions.forEach(prediction => {
+                    const className = prediction.class_name;
+                    const damagePercentage = (prediction.score * 100).toFixed(2);
+
+                    // Map prediction class name to damage type in carData
+                    const damageKey = mapClassNameToDamage(className);
+                    if (damageKey && selectedCarData[damageKey]) {
+                        const damageCost = selectedCarData[damageKey];
+                        totalCost += damageCost; // Sum up the costs
+                        message += `${className} damaged ${damagePercentage}%, Estimated Repair Cost: Rs.${damageCost}\n`;
+                    } else {
+                        message += `${className} damaged ${damagePercentage}% (Cost not available)\n`;
+                    }
+                });
+
+                // Display total cost
+                message += `\nTotal Estimated Repair Cost: Rs.${totalCost}`;
+            } else {
+                message = "Selected car data not found.";
+            }
+
+            // Set the message to the result element
+            resultElement.textContent = message;
+        }
+
+
+        // Function to upload the image for damage prediction
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('http://192.168.1.3:8000/predict/', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    displayPredictionResults(result);
+
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const img = new Image();
+                        img.src = e.target.result;
+                        img.onload = function() {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            ctx.drawImage(img, 0, 0);
+
+                            if (result.predictions) {
+                                result.predictions.forEach(pred => {
+                                    const [x1, y1, x2, y2] = pred.bbox;
+                                    const color = getRandomColor();
+                                    ctx.strokeStyle = color;
+                                    ctx.lineWidth = 4;
+                                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                                    ctx.font = '20px Arial';
+                                    ctx.fillStyle = color;
+                                    ctx.fillText(pred.class_name, x1, y1 - 10);
+                                });
+                            }
+
+                            const outputImage = document.getElementById('outputImage');
+                            outputImage.src = canvas.toDataURL();
+                            outputImage.style.display = 'block';
+                        };
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    document.getElementById('result').textContent = 'Error: ' + response.statusText;
+                }
+            } catch (error) {
+                document.getElementById('result').textContent = 'Error: ' + error.message;
+            }
+        }
+
+        // Function to get random color for bounding box
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+
+        // Function to upload the PDF and submit query, now including totalCost
+        async function uploadFileToGPT() {
+            const queryInput = document.getElementById('queryInput').value;
+            const fileInput = document.getElementById('fileInput2');
+            const file = fileInput.files[0];
+
+            if (!queryInput || !file) {
+                document.getElementById('resultFromGPT').textContent = 'Please ask your question and upload your car insurance PDF file.';
+                return;
+            }            
+            const formData = new FormData();
+            formData.append('query', queryInput);
+            formData.append('file', file);
+            formData.append('total_cost', message);  // Pass total cost with the form data
+
+            try {
+                const response = await fetch('http://192.168.1.3:8000/get_answer/', {  
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    document.getElementById('resultFromGPT').textContent = 'Answer: ' + result.answer;
+                } else {
+                    document.getElementById('resultFromGPT').textContent = 'Error: ' + response.statusText;
+                }
+            } catch (error) {
+                document.getElementById('resultFromGPT').textContent = 'Error: ' + error.message;
+            }
+        }
+
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
