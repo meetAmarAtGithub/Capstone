@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Damage Prediction & Query</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-r4NyEX2GXrHQuQ5Bx+bbWEfKNZ9RAkO2ngBI9yUw5yDI0twtutOaKNknwNbEubja" crossorigin="anonymous">
+    <style>
+        body {
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin: auto; /* This will center the container horizontally */
+        }
+        #outputImage {
+            margin-top: 20px;
+        }
+        .result-box {
+            background-color: #e9ecef;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 10px;
+        }
+        .btn-primary {
+            background-color: #a8bdd4;
+            border-color: #007bff;
+        }
+        h2, h3 {
+            color: #495057;
+        }
+        table {
+            width: 100%;
+        }
+        td {
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 style="text-align: center;">Upload an Image for Car Damage Prediction</h2>
+        <table>
+            <tr>
+                <td>
+                    <label for="country" class="form-label">Select Country</label>
+                    <select id="country" class="form-select">
+                        <option value="">Select Country</option>
+                    </select>
+                </td>
+                <td>
+                    <label for="carMake" class="form-label">Select Car Make</label>
+                    <select id="carMake" class="form-select" onchange="fetchCarModels();">
+                        <option value="">Select Make</option>
+                    </select>
+                </td>
+                <td>
+                    <label for="carModel" class="form-label">Select Car Model</label>
+                    <select id="carModel" class="form-select">
+                        <option value="">Select Model</option>
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="3" style="text-align: center;">
+                    <label for="fileInput" class="form-label">Upload Image</label>
+                    <input type="file" class="form-control" id="fileInput" onchange="displaySelectedImage()">
+                    <p id="fileName" style="display: none;"></p>                
+                    <button class="btn btn-primary w-100 mt-4" onclick="uploadFile()">Upload Image for Prediction</button>
+                </td>
+            </tr>
+        </table>
+
+        <div class="result-box mt-4">
+            <h3>Prediction Result</h3>
+            <pre style="width: 50%; height: 50%;" id="result"></pre>
+            <img id="outputImage" style="max-width: 100%; display: none;" class="img-fluid rounded">
+        </div>
+
+        <hr class="my-4">
+
+        <h3 class="text-center">Upload PDF and Submit Insurance Query</h3>
+        <table style="text-align: center;">
+            <tr>
+                <td>
+                    <label for="queryInput" class="form-label">Enter Query</label>
+                    <textarea id="queryInput" class="form-control" rows="4" cols="50" style="resize: both;" aria-placeholder="Type your query here"></textarea>
+                </td>
+            </tr>
+            <tr>            
+                <td>
+                    <label for="fileInput2" class="form-label">Upload PDF</label>
+                    <input type="file" class="form-control" id="fileInput2" accept=".pdf">
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <button type="button" class="btn btn-success w-100 mt-4" onclick="uploadFileToGPT()">Submit Query</button>
+                </td>
+            </tr>
+        </table>
+
+        <div class="result-box mt-4">
+            <h3>Result from GPT</h3>
+            <label id="resultFromGPT"></label>
+        </div>
+    </div>
+
+    <script>
+        // JSON Data for car makes and models embedded directly into the JavaScript
+        const carData = {
+            "Makes": [
+                {"make_id":"abarth","make_display":"Abarth","make_is_common":"0","make_country":"Italy", "make_model":"500", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"acura","make_display":"Acura","make_is_common":"1","make_country":"USA", "make_model":"MDX", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"alfa-romeo","make_display":"Alfa Romeo","make_is_common":"1","make_country":"Italy", "make_model":"Giulia", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"allard","make_display":"Allard","make_is_common":"0","make_country":"UK", "make_model":"J2X", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"alpina","make_display":"Alpina","make_is_common":"0","make_country":"UK", "make_model":"B7", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"alpine","make_display":"Alpine","make_is_common":"0","make_country":"Germany", "make_model":"A110", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"alvis","make_display":"Alvis","make_is_common":"0","make_country":"UK", "make_model":"TA21", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"armstrong-siddeley","make_display":"Armstrong Siddeley","make_is_common":"0","make_country":"UK", "make_model":"Hurricane" , "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"ascari","make_display":"Ascari","make_is_common":"0","make_country":"UK", "make_model":"KZ1", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"aston-martin","make_display":"Aston Martin","make_is_common":"1","make_country":"UK", "make_model":"DB11", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"audi","make_display":"Audi","make_is_common":"1","make_country":"Germany", "make_model":"A4", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"austin","make_display":"Austin","make_is_common":"0","make_country":"UK", "make_model":"Mini", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"autobianchi","make_display":"Autobianchi","make_is_common":"0","make_country":"Italy", "make_model":"A112", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"auverland","make_display":"Auverland","make_is_common":"0","make_country":"France", "make_model":"A3", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"beijing","make_display":"Beijing","make_is_common":"0","make_country":"China", "make_model":"BJ40", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"bentley","make_display":"Bentley","make_is_common":"1","make_country":"UK", "make_model":"Continental GT", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"bmw","make_display":"BMW","make_is_common":"1","make_country":"Germany", "make_model":"3 Series", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"brilliance","make_display":"Brilliance","make_is_common":"0","make_country":"China", "make_model":"H530", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"bristol","make_display":"Bristol","make_is_common":"0","make_country":"UK", "make_model":"400", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"bugatti","make_display":"Bugatti","make_is_common":"1","make_country":"Italy", "make_model":"Chiron", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"buick","make_display":"Buick","make_is_common":"1","make_country":"USA", "make_model":"Enclave", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"cadillac","make_display":"Cadillac","make_is_common":"1","make_country":"USA", "make_model":"Escalade", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"chevrolet","make_display":"Chevrolet","make_is_common":"1","make_country":"USA", "make_model":"Camaro", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"chrysler","make_display":"Chrysler","make_is_common":"1","make_country":"USA", "make_model":"300", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"citroen","make_display":"Citroen","make_is_common":"1","make_country":"France", "make_model":"C3", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"dacia","make_display":"Dacia","make_is_common":"1","make_country":"Romania", "make_model":"Duster", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"daewoo","make_display":"Daewoo","make_is_common":"1","make_country":"South Korea", "make_model":"Lanos", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"daf","make_display":"DAF","make_is_common":"0","make_country":"Netherlands", "make_model":"66", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"daihatsu","make_display":"Daihatsu","make_is_common":"1","make_country":"Japan", "make_model":"Terios", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"datsun","make_display":"Datsun","make_is_common":"1","make_country":"Japan", "make_model":"240Z", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"dkw","make_display":"DKW","make_is_common":"0","make_country":"Germany", "make_model":"F89", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"dodge","make_display":"Dodge","make_is_common":"1","make_country":"USA", "make_model":"Charger", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"donkervoort","make_display":"Donkervoort","make_is_common":"0","make_country":"Netherlands", "make_model":"D8", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"fairthorpe","make_display":"Fairthorpe","make_is_common":"0","make_country":"UK", "make_model":"Electron", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"ferrari","make_display":"Ferrari","make_is_common":"1","make_country":"Italy", "make_model":"488 GTB", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"fiat","make_display":"Fiat","make_is_common":"1","make_country":"Italy", "make_model":"500", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"ford","make_display":"Ford","make_is_common":"1","make_country":"USA", "make_model":"Mustang", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"gaz","make_display":"GAZ","make_is_common":"0","make_country":"Russia", "make_model":"Volga", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"geely","make_display":"Geely","make_is_common":"0","make_country":"China", "make_model":"Emgrand", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"ginetta","make_display":"Ginetta","make_is_common":"0","make_country":"UK", "make_model":"G40", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"gmc","make_display":"GMC","make_is_common":"1","make_country":"USA", "make_model":"Yukon", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"holden","make_display":"Holden","make_is_common":"1","make_country":"Australia", "make_model":"Commodore", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"honda","make_display":"Honda","make_is_common":"1","make_country":"Japan", "make_model":"Civic", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"humber","make_display":"Humber","make_is_common":"0","make_country":"UK", "make_model":"Super Snipe", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"hyundai","make_display":"Hyundai","make_is_common":"1","make_country":"South Korea", "make_model":"Tucson", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"infiniti","make_display":"Infiniti","make_is_common":"1","make_country":"Japan", "make_model":"Q50", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"innocenti","make_display":"Innocenti","make_is_common":"0","make_country":"Italy", "make_model":"Mini", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"isuzu","make_display":"Isuzu","make_is_common":"1","make_country":"Japan", "make_model":"D-Max", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"italdesign","make_display":"Italdesign","make_is_common":"0","make_country":"Italy", "make_model":"Zerouno", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"jaguar","make_display":"Jaguar","make_is_common":"1","make_country":"UK", "make_model":"F-Type", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"jeep","make_display":"Jeep","make_is_common":"1","make_country":"USA", "make_model":"Wrangler", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"jensen","make_display":"Jensen","make_is_common":"0","make_country":"UK", "make_model":"Interceptor", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"kia","make_display":"Kia","make_is_common":"1","make_country":"South Korea", "make_model":"Sorento", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"lada","make_display":"Lada","make_is_common":"1","make_country":"Russia", "make_model":"Niva", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"lamborghini","make_display":"Lamborghini","make_is_common":"1","make_country":"Italy", "make_model":"Aventador", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"lancia","make_display":"Lancia","make_is_common":"1","make_country":"Italy", "make_model":"Delta", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"land-rover","make_display":"Land Rover","make_is_common":"1","make_country":"UK", "make_model":"Defender", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"lexus","make_display":"Lexus","make_is_common":"1","make_country":"Japan", "make_model":"RX", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"lincoln","make_display":"Lincoln","make_is_common":"1","make_country":"USA", "make_model":"Navigator", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"lotec","make_display":"Lotec","make_is_common":"0","make_country":"Germany", "make_model":"C1000", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"lotus","make_display":"Lotus","make_is_common":"1","make_country":"UK", "make_model":"Evora", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"luxgen","make_display":"Luxgen","make_is_common":"0","make_country":"Taiwan", "make_model":"U7", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"mahindra","make_display":"Mahindra","make_is_common":"0","make_country":"India", "make_model":"Scorpio", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"marcos","make_display":"Marcos","make_is_common":"0","make_country":"UK", "make_model":"Mantis", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"matra-simca","make_display":"Matra-Simca","make_is_common":"0","make_country":"France", "make_model":"Bagheera", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"mazda","make_display":"Mazda","make_is_common":"1","make_country":"Japan", "make_model":"MX-5", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"mclaren","make_display":"McLaren","make_is_common":"1","make_country":"UK", "make_model":"720S", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"mercedes-benz","make_display":"Mercedes-Benz","make_is_common":"1","make_country":"Germany", "make_model":"E-Class", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"mercury","make_display":"Mercury","make_is_common":"1","make_country":"USA", "make_model":"Milan", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"mg","make_display":"MG","make_is_common":"1","make_country":"UK", "make_model":"ZS", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"mini","make_display":"Mini","make_is_common":"1","make_country":"UK", "make_model":"Cooper", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"mitsubishi","make_display":"Mitsubishi","make_is_common":"1","make_country":"Japan", "make_model":"Outlander", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"monteverdi","make_display":"Monteverdi","make_is_common":"0","make_country":"Switzerland", "make_model":"Hai 450", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"moretti","make_display":"Moretti","make_is_common":"0","make_country":"Italy", "make_model":"750", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"morris","make_display":"Morris","make_is_common":"1","make_country":"UK", "make_model":"Minor", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"nissan","make_display":"Nissan","make_is_common":"1","make_country":"Japan", "make_model":"Altima", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"nsu","make_display":"NSU","make_is_common":"0","make_country":"Germany", "make_model":"Ro 80", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"oldsmobile","make_display":"Oldsmobile","make_is_common":"1","make_country":"USA", "make_model":"Cutlass", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"opel","make_display":"Opel","make_is_common":"1","make_country":"Germany", "make_model":"Corsa", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"peugeot","make_display":"Peugeot","make_is_common":"1","make_country":"France", "make_model":"208", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"pininfarina","make_display":"Pininfarina","make_is_common":"0","make_country":"Italy", "make_model":"Sergio", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"porsche","make_display":"Porsche","make_is_common":"1","make_country":"Germany", "make_model":"911", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"proton","make_display":"Proton","make_is_common":"0","make_country":"Malaysia", "make_model":"Saga", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"reliant","make_display":"Reliant","make_is_common":"1","make_country":"UK", "make_model":"Robin", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"renault","make_display":"Renault","make_is_common":"1","make_country":"France", "make_model":"Clio", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"riley","make_display":"Riley","make_is_common":"1","make_country":"UK", "make_model":"RM", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"rover","make_display":"Rover","make_is_common":"1","make_country":"UK", "make_model":"200", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"saab","make_display":"Saab","make_is_common":"1","make_country":"Sweden", "make_model":"9-3", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"samsung","make_display":"Samsung","make_is_common":"0","make_country":"South Korea", "make_model":"SM5", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"saturn","make_display":"Saturn","make_is_common":"1","make_country":"USA", "make_model":"Aura", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"scion","make_display":"Scion","make_is_common":"1","make_country":"Japan", "make_model":"tC", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"seat","make_display":"Seat","make_is_common":"1","make_country":"Spain", "make_model":"Ibiza", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"simca","make_display":"Simca","make_is_common":"1","make_country":"France", "make_model":"1000", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"singer","make_display":"Singer","make_is_common":"1","make_country":"UK", "make_model":"Gazelle", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"skoda","make_display":"Skoda","make_is_common":"1","make_country":"Czech Republic", "make_model":"Octavia", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"ssangyong","make_display":"SsangYong","make_is_common":"0","make_country":"South Korea", "make_model":"Rexton", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"steyr","make_display":"Steyr","make_is_common":"0","make_country":"Austria", "make_model":"Puch", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"subaru","make_display":"Subaru","make_is_common":"1","make_country":"Japan", "make_model":"Impreza", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"sunbeam","make_display":"Sunbeam","make_is_common":"1","make_country":"UK", "make_model":"Alpine", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"suzuki","make_display":"Suzuki","make_is_common":"1","make_country":"Japan", "make_model":"Swift", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"talbot","make_display":"Talbot","make_is_common":"0","make_country":"UK", "make_model":"Horizon", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"tata","make_display":"Tata","make_is_common":"1","make_country":"India", "make_model":"Nano", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"tatra","make_display":"Tatra","make_is_common":"0","make_country":"Czech Republic", "make_model":"603", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"toyota","make_display":"Toyota","make_is_common":"1","make_country":"Japan", "make_model":"Corolla", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"trabant","make_display":"Trabant","make_is_common":"0","make_country":"Germany", "make_model":"601", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"tvr","make_display":"TVR","make_is_common":"1","make_country":"UK", "make_model":"Griffith", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"vauxhall","make_display":"Vauxhall","make_is_common":"1","make_country":"Germany", "make_model":"Astra", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"venturi","make_display":"Venturi","make_is_common":"1","make_country":"France", "make_model":"Atlantique", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"volkswagen","make_display":"Volkswagen","make_is_common":"1","make_country":"Germany", "make_model":"Golf", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"volvo","make_display":"Volvo","make_is_common":"1","make_country":"Sweden", "make_model":"XC90", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"westfield","make_display":"Westfield","make_is_common":"0","make_country":"UK", "make_model":"Seven", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"xedos","make_display":"Xedos","make_is_common":"0","make_country":"Japan", "make_model":"Xedos 6", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"zagato","make_display":"Zagato","make_is_common":"1","make_country":"Italy", "make_model":"TZ3", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"zastava","make_display":"Zastava","make_is_common":"0","make_country":"Serbia", "make_model":"Yugo", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"zaz","make_display":"ZAZ","make_is_common":"0","make_country":"Ukraine", "make_model":"968", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350},
+                {"make_id":"zil","make_display":"ZIL","make_is_common":"0","make_country":"Russia", "make_model":"41047", "Bumper_damage": 600, "Paint_damage_scratches": 400, "Body_dent": 850, "Fender_bender": 750, "Cracked_windshield": 500, "Suspension_damage": 1500, "Hood_damages": 1000, "Window_glass_damage": 450, "Trunk_boot_damage": 700, "Headlight_damage": 350}
+            ]
+        };
+
+        // Load car data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Populate country dropdown
+            const countrySet = new Set(carData.Makes.map(make => make.make_country));
+            const countrySelect = document.getElementById('country');
+            countrySet.forEach(country => {
+                const option = document.createElement('option');
+                option.value = country;
+                option.textContent = country;
+                countrySelect.appendChild(option);
+            });
+
+            // Event listener for country selection
+            countrySelect.addEventListener('change', function() {
+                const selectedCountry = countrySelect.value;
+                populateMakes(carData.Makes, selectedCountry);
+            });
+        });
+
+        // Function to populate makes based on the selected country
+        function populateMakes(makes, country) {
+            const carMakeSelect = document.getElementById('carMake');
+            carMakeSelect.innerHTML = '<option value="">Select Make</option>';
+
+            makes.filter(make => make.make_country === country).forEach(make => {
+                const option = document.createElement('option');
+                option.value = make.make_id;
+                option.textContent = make.make_display;
+                carMakeSelect.appendChild(option);
+            });
+        }
+
+        // Function to fetch car models based on the selected make
+        function fetchCarModels() {
+            const carMakeSelect = document.getElementById('carMake');
+            const selectedMake = carMakeSelect.value; // Get the selected make
+            const carModelSelect = document.getElementById('carModel');
+            
+            carModelSelect.innerHTML = '<option value="">Select Model</option>'; // Clear existing models
+
+            // Assuming you have access to 'carData.Makes', which contains all the car makes and models
+            carData.Makes.filter(make => make.make_id === selectedMake).forEach(make => {
+                const option = document.createElement('option');
+                option.value = make.make_model; // Set model as value
+                option.textContent = make.make_model; // Display model
+                carModelSelect.appendChild(option); // Append to the model select dropdown
+            });
+        }
+
+
+        // Function to display selected image file name
+        function displaySelectedImage() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            if (file) {
+                const fileNameElement = document.getElementById('fileName');
+                fileNameElement.textContent = `Selected File: ${file.name}`;
+                fileNameElement.style.display = 'block';
+            }
+        }
+
+        // Function to display prediction results and calculate the total cost of repairs
+        function displayPredictionResults(result) {
+            const resultElement = document.getElementById('result');
+            const carMakeSelect = document.getElementById('carMake').value; // Selected car make
+            const carModelSelect = document.getElementById('carModel').value; // Selected car model
+
+            let message = '';
+            let totalCost = 0;
+
+            // Function to map class names from prediction to corresponding keys in carData
+            function mapClassNameToDamage(className) {
+                const classMap = {
+                    "Hood Damage": "Hood_damages",
+                    "Cracked Windsheild": "Cracked_windshield",
+                    "Head Light": "Headlight_damage",
+                    "Fender Bender": "Fender_bender",
+                    "Bumper Damage": "Bumper_damage",
+                    "Body Dent": "Body_dent",
+                    "Paint Damage Scratches": "Paint_damage_scratches",
+                    "Suspension Damage": "Suspension_damage",
+                    "Window Glass Damage": "Window_glass_damage",
+                    "Trunk Boot Damage": "Trunk_boot_damage"
+                };
+                return classMap[className] || null; // Return the mapped key or null if no match found
+            }
+
+            // Find the selected car make and model in carData
+            const selectedCarData = carData.Makes.find(make => make.make_id === carMakeSelect && make.make_model === carModelSelect);
+
+            if (selectedCarData) {
+                // Loop through each prediction and calculate cost
+                result.predictions.forEach(prediction => {
+                    const className = prediction.class_name;
+                    const damagePercentage = (prediction.score * 100).toFixed(2);
+
+                    // Map prediction class name to damage type in carData
+                    const damageKey = mapClassNameToDamage(className);
+                    if (damageKey && selectedCarData[damageKey]) {
+                        const damageCost = selectedCarData[damageKey];
+                        totalCost += damageCost; // Sum up the costs
+                        message += `${className} damaged ${damagePercentage}%, Estimated Repair Cost: $${damageCost}\n`;
+                    } else {
+                        message += `${className} damaged ${damagePercentage}% (Cost not available)\n`;
+                    }
+                });
+
+                // Display total cost
+                message += `\nTotal Estimated Repair Cost: $${totalCost}`;
+            } else {
+                message = "Selected car data not found.";
+            }
+
+            // Set the message to the result element
+            resultElement.textContent = message;
+        }
+
+
+        // Function to upload the image for damage prediction
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('http://192.168.1.3:8000/predict/', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    displayPredictionResults(result);
+
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const img = new Image();
+                        img.src = e.target.result;
+                        img.onload = function() {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            ctx.drawImage(img, 0, 0);
+
+                            if (result.predictions) {
+                                result.predictions.forEach(pred => {
+                                    const [x1, y1, x2, y2] = pred.bbox;
+                                    const color = getRandomColor();
+                                    ctx.strokeStyle = color;
+                                    ctx.lineWidth = 4;
+                                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                                    ctx.font = '20px Arial';
+                                    ctx.fillStyle = color;
+                                    ctx.fillText(pred.class_name, x1, y1 - 10);
+                                });
+                            }
+
+                            const outputImage = document.getElementById('outputImage');
+                            outputImage.src = canvas.toDataURL();
+                            outputImage.style.display = 'block';
+                        };
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    document.getElementById('result').textContent = 'Error: ' + response.statusText;
+                }
+            } catch (error) {
+                document.getElementById('result').textContent = 'Error: ' + error.message;
+            }
+        }
+
+        // Function to get random color for bounding box
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+
+        // Function to upload the PDF and submit query
+        async function uploadFileToGPT() {
+            const queryInput = document.getElementById('queryInput').value;
+            const fileInput = document.getElementById('fileInput2');
+            const file = fileInput.files[0];
+
+            if (!queryInput || !file) {
+                document.getElementById('resultFromGPT').textContent = 'Please ask your question and upload your car insurance PDF file.';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('query', queryInput);
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('http://192.168.1.3:8000/get_answer/', {  
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    document.getElementById('resultFromGPT').textContent = 'Answer: ' + result.answer;
+                } else {
+                    document.getElementById('resultFromGPT').textContent = 'Error: ' + response.statusText;
+                }
+            } catch (error) {
+                document.getElementById('resultFromGPT').textContent = 'Error: ' + error.message;
+            }
+        }
+
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
